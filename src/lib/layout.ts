@@ -5,11 +5,11 @@ import type { Graph, Person, Union } from './types';
  * ------------------------------------------------------------------ */
 export const NODE_W = 196;
 export const NODE_H = 78;
-export const SPOUSE_GAP = 30;   // between two partners in a couple
-export const SIB_GAP = 26;      // between sibling sub-blocks
-export const FU_GAP = 56;       // between two family units of the same cluster
-export const LEVEL_GAP = 104;   // vertical space between generations
-export const ROOT_GAP = 90;     // between separate root families
+export const SPOUSE_GAP = 20;   // between two partners in a couple
+export const SIB_GAP = 58;      // between sibling sub-blocks
+export const FU_GAP = 112;      // between two family units of the same cluster
+export const LEVEL_GAP = 132;   // vertical space between generations
+export const ROOT_GAP = 190;    // between separate root families
 export const PAD = 80;
 
 /* ------------------------------------------------------------------ *
