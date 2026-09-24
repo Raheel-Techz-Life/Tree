@@ -34,15 +34,31 @@ In the Supabase dashboard: **SQL Editor** → **New query** → paste the entire
 This creates every table, the row-level security policies, the invite/role functions, the
 audit triggers, the private photo bucket, and turns on realtime. It is safe to re-run.
 
-### 3. Turn on email sign-in
+### 3. Turn on email sign-in and set the URLs
 
 **Authentication → Sign In / Providers → Email**: make sure Email is enabled.
-Leave "Confirm email" on. The app uses 6-digit codes, not magic links, so you do **not**
-need to configure redirect URLs.
 
-> Supabase's built-in email sender is rate-limited (a few messages per hour) — fine while you
-> and a few relatives sign up. If you're onboarding a large family at once, add an SMTP
-> provider under **Authentication → Emails → SMTP Settings**.
+**Authentication → URL Configuration** — this one matters:
+
+- **Site URL**: your real address, e.g. `https://your-app.vercel.app`
+  (it defaults to `http://localhost:3000`, which sends everyone's sign-in link to a
+  machine that isn't yours)
+- **Redirect URLs**: add `https://your-app.vercel.app/**` and, for local work,
+  `http://localhost:3000/**`
+
+Sign-in works by emailed link. The link lands on `/auth/callback`, which exchanges it for a
+session and forwards the user on.
+
+> **About 6-digit codes.** Supabase only lets you edit email templates once custom SMTP is
+> configured, and the built-in template sends a link, not a code. So on the free built-in
+> mailer, the link is the only option. If you later add SMTP, put `{{ .Token }}` in the Magic
+> Link template and the code box on the sign-in screen starts working too — the app accepts
+> either.
+
+> **The built-in mailer is rate-limited** to a couple of messages an hour and is not meant for
+> production. Before inviting the family, add a provider under **Authentication → Emails →
+> SMTP Settings**. Brevo's free tier verifies a single sender address instead of a whole
+> domain, which matters if you don't own one.
 
 ### 4. Configure the app
 
@@ -174,7 +190,8 @@ Run the layout test with `npx tsx scripts/smoke.ts /tmp/tree.svg`.
 | Symptom | Cause |
 |---|---|
 | "Not configured" on the home page | `.env.local` missing or dev server not restarted after creating it |
-| Sign-in code never arrives | Supabase's built-in email rate limit; wait an hour or add SMTP |
+| Sign-in email never arrives | Built-in mailer rate limit (~2/hour); wait, check spam, or add SMTP |
+| Link goes to localhost | Site URL in Authentication → URL Configuration is still the default |
 | "invite code not found" | Typo, or the code was revoked. Codes are case-insensitive |
 | Tree loads empty for a relative | They joined a *different* tree — check **People with access** |
 | Photos show as blank circles | The `photos` bucket wasn't created; re-run `schema.sql` |
