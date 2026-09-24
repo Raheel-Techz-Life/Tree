@@ -46,8 +46,15 @@ audit triggers, the private photo bucket, and turns on realtime. It is safe to r
 - **Redirect URLs**: add `https://your-app.vercel.app/**` and, for local work,
   `http://localhost:3000/**`
 
-Sign-in works by emailed link. The link lands on `/auth/callback`, which exchanges it for a
+Sign-in works by emailed link. The link lands on `/auth/callback`, which establishes the
 session and forwards the user on.
+
+> The client uses Supabase's **implicit** flow, not PKCE, and that is deliberate. PKCE keeps a
+> code verifier in the browser that requested the link, and only that browser can complete the
+> sign-in. Email links get opened wherever the mail app decides — a phone, an in-app webview,
+> a different machine — and each of those fails with "PKCE code verifier not found". Implicit
+> returns the session in the URL, so any browser can finish. If you ever switch this back to
+> PKCE, expect support requests from relatives who read mail on their phone.
 
 > **About 6-digit codes.** Supabase only lets you edit email templates once custom SMTP is
 > configured, and the built-in template sends a link, not a code. So on the free built-in
@@ -192,6 +199,7 @@ Run the layout test with `npx tsx scripts/smoke.ts /tmp/tree.svg`.
 | "Not configured" on the home page | `.env.local` missing or dev server not restarted after creating it |
 | Sign-in email never arrives | Built-in mailer rate limit (~2/hour); wait, check spam, or add SMTP |
 | Link goes to localhost | Site URL in Authentication → URL Configuration is still the default |
+| "PKCE code verifier not found" | An old link from before this change — request a fresh one |
 | "invite code not found" | Typo, or the code was revoked. Codes are case-insensitive |
 | Tree loads empty for a relative | They joined a *different* tree — check **People with access** |
 | Photos show as blank circles | The `photos` bucket wasn't created; re-run `schema.sql` |
