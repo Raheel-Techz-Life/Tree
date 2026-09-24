@@ -34,38 +34,47 @@ In the Supabase dashboard: **SQL Editor** → **New query** → paste the entire
 This creates every table, the row-level security policies, the invite/role functions, the
 audit triggers, the private photo bucket, and turns on realtime. It is safe to re-run.
 
-### 3. Turn on email sign-in and set the URLs
+### 3. Sign-in: Google, and email as a fallback
 
-**Authentication → Sign In / Providers → Email**: make sure Email is enabled.
+**Google is the one worth setting up.** No email sending means no SMTP, no rate limits, no
+links opening in the wrong browser. Most families are already on Gmail.
 
-**Authentication → URL Configuration** — this one matters:
+**In Google Cloud Console** (console.cloud.google.com):
 
-- **Site URL**: your real address, e.g. `https://your-app.vercel.app`
-  (it defaults to `http://localhost:3000`, which sends everyone's sign-in link to a
-  machine that isn't yours)
-- **Redirect URLs**: add `https://your-app.vercel.app/**` and, for local work,
-  `http://localhost:3000/**`
+1. Create a project.
+2. **APIs & Services → OAuth consent screen** → External. Fill in app name, your email for
+   both support and developer contact. Save.
+3. **Credentials → Create credentials → OAuth client ID → Web application**.
+4. Under **Authorized redirect URIs** add exactly this — your *Supabase* callback, not your
+   app's:
+   ```
+   https://<your-ref>.supabase.co/auth/v1/callback
+   ```
+   Getting this wrong is the single most common failure. It is not your vercel.app URL.
+5. Copy the **Client ID** and **Client secret**.
 
-Sign-in works by emailed link. The link lands on `/auth/callback`, which establishes the
-session and forwards the user on.
+**In Supabase → Authentication → Providers → Google**: enable it, paste both values, save.
 
-> The client uses Supabase's **implicit** flow, not PKCE, and that is deliberate. PKCE keeps a
-> code verifier in the browser that requested the link, and only that browser can complete the
-> sign-in. Email links get opened wherever the mail app decides — a phone, an in-app webview,
-> a different machine — and each of those fails with "PKCE code verifier not found". Implicit
-> returns the session in the URL, so any browser can finish. If you ever switch this back to
-> PKCE, expect support requests from relatives who read mail on their phone.
+While the consent screen is in *Testing*, only accounts you list under **Test users** can sign
+in. Publish it when you're ready for the family — the scopes here (email, profile) are
+non-sensitive, so publishing needs no Google review.
 
-> **About 6-digit codes.** Supabase only lets you edit email templates once custom SMTP is
-> configured, and the built-in template sends a link, not a code. So on the free built-in
-> mailer, the link is the only option. If you later add SMTP, put `{{ .Token }}` in the Magic
-> Link template and the code box on the sign-in screen starts working too — the app accepts
-> either.
+**Email links still work** for anyone without a Google account. For those:
 
-> **The built-in mailer is rate-limited** to a couple of messages an hour and is not meant for
-> production. Before inviting the family, add a provider under **Authentication → Emails →
-> SMTP Settings**. Brevo's free tier verifies a single sender address instead of a whole
-> domain, which matters if you don't own one.
+**Authentication → URL Configuration**
+
+- **Site URL**: `https://your-app.vercel.app`
+  (it defaults to `http://localhost:3000`, which sends sign-in links to a machine that
+  isn't yours)
+- **Redirect URLs**: add `https://your-app.vercel.app/**` and `http://localhost:3000/**`
+
+> **On email templates.** Supabase only lets you edit them once custom SMTP is configured,
+> and the built-in template sends a link rather than a code. That is why this app signs in by
+> link. Leave custom SMTP off unless you have working credentials — enabling it half-filled
+> makes every send fail with a 500.
+
+> **The built-in mailer is rate-limited** to a couple of messages an hour. Fine for testing,
+> useless for onboarding a family. Another reason to use Google.
 
 ### 4. Configure the app
 
@@ -197,7 +206,9 @@ Run the layout test with `npx tsx scripts/smoke.ts /tmp/tree.svg`.
 | Symptom | Cause |
 |---|---|
 | "Not configured" on the home page | `.env.local` missing or dev server not restarted after creating it |
-| Sign-in email never arrives | Built-in mailer rate limit (~2/hour); wait, check spam, or add SMTP |
+| Google sign-in: redirect_uri_mismatch | The redirect URI in Google Cloud must be the **Supabase** callback, `https://<ref>.supabase.co/auth/v1/callback` |
+| Google sign-in: access blocked | Consent screen is still in Testing and that account isn't a listed test user |
+| Sign-in email never arrives | Built-in mailer rate limit (~2/hour); wait, check spam, or use Google |
 | Link goes to localhost | Site URL in Authentication → URL Configuration is still the default |
 | "PKCE code verifier not found" | An old link from before this change — request a fresh one |
 | "invite code not found" | Typo, or the code was revoked. Codes are case-insensitive |

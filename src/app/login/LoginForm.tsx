@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 
 export default function LoginForm({
@@ -13,55 +12,94 @@ export default function LoginForm({
   inviteCode: string;
   initialError?: string;
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'google' | 'email' | null>(null);
   const [err, setErr] = useState(initialError);
+  const [showEmail, setShowEmail] = useState(false);
 
   const dest = inviteCode ? `/join?code=${encodeURIComponent(inviteCode)}` : next;
+  const redirect = () =>
+    `${window.location.origin}/auth/callback?next=${encodeURIComponent(dest)}`;
 
-  async function send(e: React.FormEvent) {
+  async function google() {
+    setBusy('google'); setErr('');
+    const { error } = await supabase().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: redirect() },
+    });
+    if (error) { setBusy(null); setErr(error.message); }
+    // on success the browser navigates away to Google
+  }
+
+  async function sendLink(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true); setErr('');
-    // emailRedirectTo is what makes the link in the email come back here.
-    const redirect =
-      `${window.location.origin}/auth/callback?next=${encodeURIComponent(dest)}`;
+    setBusy('email'); setErr('');
     const { error } = await supabase().auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: true, emailRedirectTo: redirect },
+      options: { shouldCreateUser: true, emailRedirectTo: redirect() },
     });
-    setBusy(false);
+    setBusy(null);
     if (error) setErr(error.message);
     else setSent(true);
   }
 
-  // Only usable if the project has custom SMTP and a template containing
-  // {{ .Token }}. Harmless otherwise — the field just stays empty.
-  async function verify(e: React.FormEvent) {
-    e.preventDefault();
-    if (!code.trim()) return;
-    setBusy(true); setErr('');
-    const { error } = await supabase().auth.verifyOtp({
-      email: email.trim(), token: code.trim(), type: 'email',
-    });
-    if (error) { setBusy(false); setErr(error.message); return; }
-    router.replace(dest);
-    router.refresh();
+  if (sent) {
+    return (
+      <div className="center-page">
+        <div className="card">
+          <h1>Check your email</h1>
+          <p className="sub">
+            We sent a sign-in link to <b>{email}</b>. Open it on any device — it works
+            anywhere.
+          </p>
+          <p className="hint" style={{ marginBottom: 18 }}>
+            Nothing after a minute? Check spam. The free mailer is rate-limited, so wait
+            before asking for another.
+          </p>
+          <button
+            className="btn" style={{ width: '100%', justifyContent: 'center' }}
+            onClick={() => { setSent(false); setErr(''); }}
+          >
+            ← Back
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="center-page">
       <div className="card">
         <h1>Family Tree</h1>
+        <p className="sub">Sign in to see and add to your family&apos;s tree.</p>
 
-        {!sent ? (
+        <button
+          className="btn" onClick={google} disabled={busy !== null}
+          style={{ width: '100%', justifyContent: 'center', gap: 10, minHeight: 46 }}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/>
+            <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"/>
+            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/>
+          </svg>
+          {busy === 'google' ? 'Opening Google…' : 'Continue with Google'}
+        </button>
+
+        {err && <p className="err">{err}</p>}
+
+        {!showEmail ? (
+          <button
+            className="btn ghost sm" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }}
+            onClick={() => setShowEmail(true)}
+          >
+            No Google account? Sign in by email
+          </button>
+        ) : (
           <>
-            <p className="sub">
-              Sign in with your email. We&apos;ll send you a link — no password to remember.
-            </p>
-            <form onSubmit={send}>
+            <div className="divider" />
+            <form onSubmit={sendLink}>
               <div className="field">
                 <label htmlFor="email">Email address</label>
                 <input
@@ -69,55 +107,15 @@ export default function LoginForm({
                   autoComplete="email" placeholder="you@example.com"
                   value={email} onChange={(e) => setEmail(e.target.value)}
                 />
+                <span className="hint">We&apos;ll email you a sign-in link.</span>
               </div>
-              {err && <p className="err">{err}</p>}
               <button
-                className="btn primary"
-                style={{ width: '100%', justifyContent: 'center' }}
-                disabled={busy}
+                className="btn" style={{ width: '100%', justifyContent: 'center' }}
+                disabled={busy !== null}
               >
-                {busy ? 'Sending…' : 'Send sign-in link'}
+                {busy === 'email' ? 'Sending…' : 'Send sign-in link'}
               </button>
             </form>
-          </>
-        ) : (
-          <>
-            <p className="sub">
-              Check <b>{email}</b> and tap the sign-in link. You can close this tab.
-            </p>
-
-            <p className="hint" style={{ marginBottom: 16 }}>
-              Nothing after a minute? Look in spam. The free Supabase mailer is
-              rate-limited, so wait before asking for another.
-            </p>
-
-            <div className="divider" />
-
-            <form onSubmit={verify}>
-              <div className="field">
-                <label htmlFor="otp">Got a 6-digit code instead of a link?</label>
-                <input
-                  id="otp" className="input mono" inputMode="numeric"
-                  autoComplete="one-time-code" placeholder="123456" maxLength={8}
-                  value={code} onChange={(e) => setCode(e.target.value)}
-                />
-                <span className="hint">
-                  Only if this project uses custom SMTP. Otherwise use the link.
-                </span>
-              </div>
-              {err && <p className="err">{err}</p>}
-              <button className="btn" disabled={busy || !code.trim()}
-                      style={{ width: '100%', justifyContent: 'center' }}>
-                {busy ? 'Checking…' : 'Sign in with code'}
-              </button>
-            </form>
-
-            <button
-              type="button" className="btn ghost sm" style={{ marginTop: 12 }}
-              onClick={() => { setSent(false); setErr(''); setCode(''); }}
-            >
-              ← Use a different email
-            </button>
           </>
         )}
 
